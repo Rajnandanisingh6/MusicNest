@@ -13,7 +13,7 @@ async function registerUser(req,res){
         ]
     })
     if(isUserAlreadyExists){
-        res.status(409).json({message: "User Already exists"});
+       return res.status(409).json({message: "User Already exists"});
     }
 
     const hash = await bcrypt.hash(password,10); //Hash the password using bcrypt with a salt round of 10
@@ -57,7 +57,7 @@ async function loginUser(req,res){
     return res.status(401).json({message: "Invalid credentials"});
    }
 
-   isPasswordValid = await bcrypt.compare(password,user.password);
+   const isPasswordValid = await bcrypt.compare(password,user.password);
 
    if(!isPasswordValid){
     return res.status(401).json({message :"Invalid credentials"});
