@@ -3,10 +3,17 @@ const albumModel = require('../models/album.model');
 const { uploadFile } = require('../services/storage.service');
 const jwt = require('jsonwebtoken');
 
-async function createMusic(req, res) {
-    
+ async function createMusic(req, res) {
+    try {
         const { title } = req.body;
         const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({ message: "music file is required" });
+        }
+        if (!title) {
+            return res.status(400).json({ message: "title is required" });
+        }
 
         const result = await uploadFile(file.buffer.toString('base64'));
 
@@ -16,7 +23,7 @@ async function createMusic(req, res) {
             artist: req.user.id,
         });
 
-            res.status(201).json({
+        res.status(201).json({
             message: "Music created successfully",
             music: {
                 id: music._id,
@@ -25,29 +32,40 @@ async function createMusic(req, res) {
                 artist: music.artist,
             },
         });
-} 
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to upload music" });
+    }
+}
 
 
-async function createAlbum(req,res){
-    
-       const {title,musics} = req.body;
+async function createAlbum(req, res) {
+    try {
+        const { title, musics } = req.body;
+
+        if (!title) {
+            return res.status(400).json({ message: "title is required" });
+        }
 
         const album = await albumModel.create({
             title,
-            artist:req.user.id,
-            musics:musics,
-        })
-            res.status(201).json({
-            message:"Album created successfully",
-            album:{
+            artist: req.user.id,
+            musics: musics,
+        });
+
+        res.status(201).json({
+            message: "Album created successfully",
+            album: {
                 id: album._id,
                 title: album.title,
                 artist: album.artist,
                 musics: album.musics,
             }
         });
-
-
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to create album" });
+    }
 }
   
 const getAllMusics = async (req, res) => {
