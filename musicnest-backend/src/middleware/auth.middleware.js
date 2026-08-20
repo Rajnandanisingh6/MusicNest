@@ -14,6 +14,7 @@ async function authArtist(req,res,next){
         if(decoded.role !=="artist"){
             return res.status(403).json({message:"You don't have access"})
         }
+        req.user = decoded;
         next();
     }
     catch(err){
