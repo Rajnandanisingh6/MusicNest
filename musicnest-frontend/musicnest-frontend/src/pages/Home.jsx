@@ -6,10 +6,9 @@ export default function Home() {
   const [musics, setMusics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const { user } = useAuth();
 
-  // Keep one <audio> DOM reference per track, keyed by its id.
-  // This lets us play/pause a specific track from the note-badge button.
   const audioRefs = useRef({});
   const [playingId, setPlayingId] = useState(null);
 
@@ -40,10 +39,44 @@ export default function Home() {
       audio.pause();
       setPlayingId(null);
     } else {
-      // stop any other track that might be playing first
       Object.values(audioRefs.current).forEach((a) => a && a.pause());
       audio.play();
-      setPlayingId(id);
+    }
+  }
+
+  async function handleLike(id) {
+    setMusics((prev) =>
+      prev.map((m) => {
+        if ((m.id || m._id) !== id) return m;
+        const nowLiked = !m.isLiked;
+        return { ...m, isLiked: nowLiked, likeCount: (m.likeCount || 0) + (nowLiked ? 1 : -1) };
+      })
+    );
+
+    try {
+      await api.post(`/music/${id}/like`);
+    } catch (err) {
+      setMusics((prev) =>
+        prev.map((m) => {
+          if ((m.id || m._id) !== id) return m;
+          const revertLiked = !m.isLiked;
+          return { ...m, isLiked: revertLiked, likeCount: (m.likeCount || 0) + (revertLiked ? 1 : -1) };
+        })
+      );
+    }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this track? This cannot be undone.')) return;
+
+    setDeletingId(id);
+    try {
+      await api.delete(`/music/${id}`);
+      setMusics((prev) => prev.filter((m) => (m.id || m._id) !== id));
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete track');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -67,17 +100,22 @@ export default function Home() {
             <div className="grid">
               {musics.map((music) => {
                 const id = music.id || music._id;
+                const isOwner = user.role === 'artist' && music.artist?._id === user.id;
                 return (
                   <div key={id} className="card">
                     <div className="card-top">
-                      <button
-                        type="button"
-                        className="note-badge"
-                        onClick={() => toggleAudio(id)}
-                        aria-label={playingId === id ? 'Pause' : 'Play'}
-                      >
-                        {playingId === id ? '⏸' : '🎵'}
-                      </button>
+                      {music.coverImage ? (
+                        <img src={music.coverImage} alt={music.title} className="cover-thumb" />
+                      ) : (
+                        <button
+                          type="button"
+                          className="note-badge"
+                          onClick={() => toggleAudio(id)}
+                          aria-label={playingId === id ? 'Pause' : 'Play'}
+                        >
+                          {playingId === id ? '⏸' : '🎵'}
+                        </button>
+                      )}
                       <div>
                         <h3>{music.title}</h3>
                         <p className="muted">by {music.artist?.username}</p>
@@ -87,9 +125,40 @@ export default function Home() {
                       ref={(el) => (audioRefs.current[id] = el)}
                       controls
                       src={music.uri}
+                      onPlay={() => {
+                        if (playingId !== id) {
+                          setPlayingId(id);
+                          api.post(`/music/${id}/play`).catch(() => {});
+                          setMusics((prev) =>
+                            prev.map((m) =>
+                              (m.id || m._id) === id ? { ...m, playCount: (m.playCount || 0) + 1 } : m
+                            )
+                          );
+                        }
+                      }}
                       onPause={() => setPlayingId((prev) => (prev === id ? null : prev))}
                       onEnded={() => setPlayingId((prev) => (prev === id ? null : prev))}
                     />
+                    <div className="card-stats">
+                      <button
+                        type="button"
+                        className={`like-btn ${music.isLiked ? 'liked' : ''}`}
+                        onClick={() => handleLike(id)}
+                      >
+                        {music.isLiked ? '❤️' : '🤍'} {music.likeCount || 0}
+                      </button>
+                      <span className="play-count">▶ {music.playCount || 0} plays</span>
+                    </div>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        className="delete-btn"
+                        onClick={() => handleDelete(id)}
+                        disabled={deletingId === id}
+                      >
+                        {deletingId === id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    )}
                   </div>
                 );
               })}

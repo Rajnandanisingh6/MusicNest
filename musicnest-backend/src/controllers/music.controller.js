@@ -1,21 +1,20 @@
 const musicModel = require('../models/music.model');
 const albumModel = require('../models/album.model');
-const { uploadFile } = require('../services/storage.service');
+const { uploadFile, deleteFile } = require('../services/storage.service');
 
 async function createMusic(req, res) {
     try {
         const { title } = req.body;
-        const file = req.file;
+        const musicFile = req.files?.music?.[0];
+        const coverFile = req.files?.coverImage?.[0];
 
-        if (!file) {
+        if (!musicFile) {
             return res.status(400).json({ message: "music file is required" });
         }
         if (!title) {
             return res.status(400).json({ message: "title is required" });
         }
 
-        // ek artist max 50 songs hi upload kar sake, isse koi ek account akela poora
-        // ImageKit free quota khatam nahi kar dega
         const artistMusicCount = await musicModel.countDocuments({ artist: req.user.id });
         const MAX_UPLOADS_PER_ARTIST = 20;
         if (artistMusicCount >= MAX_UPLOADS_PER_ARTIST) {
@@ -24,12 +23,20 @@ async function createMusic(req, res) {
             });
         }
 
-        const result = await uploadFile(file.buffer.toString('base64'));
+        const result = await uploadFile(musicFile.buffer.toString('base64'), "yt-complete-backend/music");
+
+        let coverImageData = undefined;
+        if (coverFile) {
+            const coverResult = await uploadFile(coverFile.buffer.toString('base64'), "yt-complete-backend/covers");
+            coverImageData = { url: coverResult.url, fileId: coverResult.fileId };
+        }
 
         const music = await musicModel.create({
             uri: result.url,
+            fileId: result.fileId,
             title,
             artist: req.user.id,
+            coverImage: coverImageData,
         });
 
         res.status(201).json({
@@ -39,6 +46,7 @@ async function createMusic(req, res) {
                 uri: music.uri,
                 title: music.title,
                 artist: music.artist,
+                coverImage: music.coverImage?.url || null,
             },
         });
     } catch (error) {
@@ -56,7 +64,6 @@ async function createAlbum(req, res) {
             return res.status(400).json({ message: "title is required" });
         }
 
-        // musics bheja gaya hai toh array hona chahiye, warna galat data DB mein chala jayega
         if (musics && !Array.isArray(musics)) {
             return res.status(400).json({ message: "musics must be an array of music ids" });
         }
@@ -97,13 +104,20 @@ const getAllMusics = async (req, res) => {
 
         const total = await musicModel.countDocuments();
 
+        // frontend ke liye har song mein likeCount aur ye user ne like kiya hai ya nahi, add karo
+        const musicsWithMeta = musics.map(m => ({
+            ...m.toObject(),
+            likeCount: m.likes.length,
+            isLiked: req.user ? m.likes.some(id => id.toString() === req.user.id) : false,
+        }));
+
         return res.status(200).json({
             success: true,
             page,
             limit,
             total,
             totalPages: Math.ceil(total / limit),
-            musics
+            musics: musicsWithMeta
         });
     } catch (error) {
         return res.status(500).json({
@@ -113,6 +127,79 @@ const getAllMusics = async (req, res) => {
         });
     }
 };
+
+// sabse zyada liked/played songs — "Trending" section ke liye
+const getTrending = async (req, res) => {
+    try {
+        const limit = Math.min(Number(req.query.limit) || 10, 20);
+
+        const musics = await musicModel
+            .find()
+            .populate("artist", "username email")
+            .lean();
+
+        // ek simple trending score: likes ka zyada weight, plays ka kam
+        const sorted = musics
+            .map(m => ({
+                ...m,
+                likeCount: m.likes.length,
+                trendingScore: (m.likes.length * 3) + m.playCount,
+            }))
+            .sort((a, b) => b.trendingScore - a.trendingScore)
+            .slice(0, limit);
+
+        res.status(200).json({ musics: sorted });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to fetch trending music" });
+    }
+};
+
+async function toggleLike(req, res) {
+    try {
+        const music = await musicModel.findById(req.params.musicId);
+        if (!music) {
+            return res.status(404).json({ message: "Music not found" });
+        }
+
+        const userId = req.user.id;
+        const alreadyLiked = music.likes.some(id => id.toString() === userId);
+
+        if (alreadyLiked) {
+            music.likes = music.likes.filter(id => id.toString() !== userId);
+        } else {
+            music.likes.push(userId);
+        }
+
+        await music.save();
+
+        res.status(200).json({
+            message: alreadyLiked ? "Unliked" : "Liked",
+            likeCount: music.likes.length,
+            isLiked: !alreadyLiked,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to update like" });
+    }
+}
+
+async function incrementPlayCount(req, res) {
+    try {
+        const music = await musicModel.findByIdAndUpdate(
+            req.params.musicId,
+            { $inc: { playCount: 1 } },
+            { new: true }
+        );
+        if (!music) {
+            return res.status(404).json({ message: "Music not found" });
+        }
+        res.status(200).json({ playCount: music.playCount });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to update play count" });
+    }
+}
 
 async function getAllAlbums(req, res) {
     try {
@@ -131,7 +218,6 @@ async function getAlbumById(req, res) {
     try {
         const album = await albumModel.findById(req.params.albumId).populate('artist', 'username email').populate('musics');
 
-        // agar id sahi format ki hai but album exist nahi karta
         if (!album) {
             return res.status(404).json({ message: "Album not found" });
         }
@@ -142,10 +228,35 @@ async function getAlbumById(req, res) {
         })
     } catch (error) {
         console.error(error);
-        // galat format ka albumId doge toh CastError aayega, wo bhi yahin handle ho jayega
         res.status(500).json({ message: "Failed to fetch album" });
     }
 }
 
+async function deleteMusic(req, res) {
+    try {
+        const music = await musicModel.findById(req.params.musicId);
 
-module.exports = { createMusic, createAlbum, getAllMusics, getAllAlbums, getAlbumById };
+        if (!music) {
+            return res.status(404).json({ message: "Music not found" });
+        }
+
+        if (music.artist.toString() !== req.user.id) {
+            return res.status(403).json({ message: "You can only delete your own music" });
+        }
+
+        await deleteFile(music.fileId);
+        if (music.coverImage?.fileId) {
+            await deleteFile(music.coverImage.fileId);
+        }
+
+        await musicModel.findByIdAndDelete(req.params.musicId);
+
+        res.status(200).json({ message: "Music deleted successfully" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to delete music" });
+    }
+}
+
+
+module.exports = { createMusic, createAlbum, getAllMusics, getAllAlbums, getAlbumById, deleteMusic, getTrending, toggleLike, incrementPlayCount };
