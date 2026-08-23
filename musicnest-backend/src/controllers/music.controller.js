@@ -1,6 +1,7 @@
 const musicModel = require('../models/music.model');
 const albumModel = require('../models/album.model');
 const { uploadFile, deleteFile } = require('../services/storage.service');
+const { parseBuffer } = require('music-metadata');
 
 async function createMusic(req, res) {
     try {
@@ -26,9 +27,27 @@ async function createMusic(req, res) {
         const result = await uploadFile(musicFile.buffer.toString('base64'), "yt-complete-backend/music");
 
         let coverImageData = undefined;
+
         if (coverFile) {
+            // artist ne khud cover image di hai, usi ko use karo
             const coverResult = await uploadFile(coverFile.buffer.toString('base64'), "yt-complete-backend/covers");
             coverImageData = { url: coverResult.url, fileId: coverResult.fileId };
+        } else {
+            // koi cover nahi di — mp3 ke andar hi embedded album art hoti hai kya, wo check karo
+            try {
+                const metadata = await parseBuffer(musicFile.buffer, musicFile.mimetype);
+                const embeddedPicture = metadata.common.picture?.[0];
+                if (embeddedPicture) {
+                    const coverResult = await uploadFile(
+                        Buffer.from(embeddedPicture.data).toString('base64'),
+                        "yt-complete-backend/covers"
+                    );
+                    coverImageData = { url: coverResult.url, fileId: coverResult.fileId };
+                }
+            } catch (metaErr) {
+                console.error("Could not read embedded cover art:", metaErr.message);
+                // ye fail ho toh bhi upload rukna nahi chahiye — frontend gradient placeholder dikha dega
+            }
         }
 
         const music = await musicModel.create({
