@@ -22,7 +22,8 @@ export default function Register() {
       login(res.data.user);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      const data = err.response?.data;
+      setError(data?.requirements || data?.message || 'Registration failed');
     }
   }
 

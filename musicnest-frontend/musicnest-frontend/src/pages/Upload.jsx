@@ -22,7 +22,12 @@ export default function Upload() {
       return;
     }
 
-    // multipart/form-data is required because we're sending a file
+    const MAX_SIZE = 8 * 1024 * 1024; // 8MB
+    if (file.size > MAX_SIZE) {
+      setError('File is too large. Max size is 8MB.');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('title', title);
     formData.append('music', file);
@@ -57,6 +62,7 @@ export default function Upload() {
           required
         />
         {file && <p className="muted">Selected: {file.name}</p>}
+        <p className="muted" style={{ fontSize: '0.85em' }}>Max file size: 8MB</p>
         {message && <p className="success">{message}</p>}
         {error && <p className="error">{error}</p>}
         <button type="submit">Upload</button>
