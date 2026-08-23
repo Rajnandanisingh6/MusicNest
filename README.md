@@ -38,7 +38,7 @@ npm install
 Create a `.env` file in `musicnest-backend/` with:
 
 ```
-PORT=3000
+PORT=4000
 MONGODB_URI=your_mongodb_atlas_connection_string
 JWT_SECRET=your_jwt_secret
 IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
@@ -52,6 +52,8 @@ Run the server:
 npm run dev
 ```
 
+The API will be available at `http://localhost:4000`.
+
 ### Frontend Setup
 
 ```bash
@@ -61,6 +63,8 @@ npm run dev
 ```
 
 ## API Routes
+
+Base URL: `http://localhost:4000/api`
 
 | Method | Route | Access | Description |
 |--------|-------|--------|-------------|
