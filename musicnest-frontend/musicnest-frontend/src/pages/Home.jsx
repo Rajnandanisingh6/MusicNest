@@ -165,14 +165,14 @@ export default function Home() {
                 return (
                   <div key={id} className="card" style={{ animationDelay: `${Math.min(index * 0.06, 0.6)}s` }}>
                     <div className="card-top">
-                      {music.coverImage ? (
+                      {music.coverImage?.url ? (
                         <button
                           type="button"
                           className={`cover-btn ${isPlaying ? 'spinning' : ''}`}
                           onClick={() => toggleAudio(id)}
                           aria-label={isPlaying ? 'Pause' : 'Play'}
                         >
-                          <img src={music.coverImage} alt={music.title} className="cover-thumb" />
+                          <img src={music.coverImage.url} alt={music.title} className="cover-thumb" />
                           <span className="vinyl-hole" />
                         </button>
                       ) : (
