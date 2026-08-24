@@ -6,7 +6,10 @@ const bcrypt = require('bcryptjs'); //Import the bcryptjs module to hash and com
 const cookieOptions = {
     httpOnly: true,                                   // JS se cookie access nahi ho sakti (XSS se bachav)
     secure: process.env.NODE_ENV === 'production',     // production mein sirf HTTPS pe bheji jaayegi
-    sameSite: 'strict',                                // CSRF se bachav
+    // frontend aur backend alag-alag domains pe hain (Render pe do alag services),
+    // isliye cross-domain cookie bhejne ke liye 'none' chahiye. 'strict'/'lax' local
+    // dev ke liye theek hai jahan dono same localhost pe hote hain.
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000                    // 7 din
 };
 
