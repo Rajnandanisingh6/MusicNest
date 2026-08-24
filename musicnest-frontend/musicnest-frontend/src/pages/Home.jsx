@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -18,9 +19,19 @@ export default function Home() {
   const [toast, setToast] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const { user } = useAuth();
+  const location = useLocation();
 
   const audioRefs = useRef({});
   const [playingId, setPlayingId] = useState(null);
+
+  useEffect(() => {
+    if (location.state?.justAuthed && user) {
+      setToast({ type: 'welcome', message: `Welcome, ${user.username}! 🎵` });
+      const t = setTimeout(() => setToast(null), 3200);
+      window.history.replaceState({}, document.title);
+      return () => clearTimeout(t);
+    }
+  }, [location.state, user]);
 
   useEffect(() => {
     if (!user) {

@@ -18,15 +18,13 @@ export default function Login() {
     e.preventDefault();
     setError('');
     try {
-      // backend accepts either username or email — sending both is fine,
-      // whichever one matches will be used
       const res = await api.post('/auth/login', {
         username: form.username,
         email: form.username,
         password: form.password,
       });
       login(res.data.user);
-      navigate('/');
+      navigate('/', { state: { justAuthed: true } });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
     }
@@ -42,7 +40,7 @@ export default function Login() {
         {error && <p className="error">{error}</p>}
         <button type="submit">Login</button>
       </form>
-      <p className="muted" style={{ marginTop: 16 }}>
+      <p className="muted" style={{ marginTop: 12 }}>
         New here? <Link to="/register">Create an account</Link>
       </p>
     </div>

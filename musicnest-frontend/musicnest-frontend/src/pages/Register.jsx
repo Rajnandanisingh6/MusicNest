@@ -20,7 +20,7 @@ export default function Register() {
     try {
       const res = await api.post('/auth/register', form);
       login(res.data.user);
-      navigate('/');
+      navigate('/', { state: { justAuthed: true } });
     } catch (err) {
       const data = err.response?.data;
       setError(data?.requirements || data?.message || 'Registration failed');
@@ -33,8 +33,11 @@ export default function Register() {
       <h1>Create account</h1>
       <form onSubmit={handleSubmit}>
         <input name="username" placeholder="Username" value={form.username} onChange={handleChange} required />
+        <p className="field-hint">3-20 characters — letters, numbers, underscore only</p>
+
         <input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} required />
         <input name="password" type="password" placeholder="Password" value={form.password} onChange={handleChange} required />
+        <p className="field-hint">At least 8 characters with uppercase, lowercase, number & symbol</p>
 
         <label className="role-label">
           I am a
